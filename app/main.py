@@ -14,7 +14,6 @@ app.add_middleware(
 
 app.include_router(auth.router, prefix="/api/auth", tags=["Autenticación"])
 app.include_router(solicitudes.router, prefix="/api/solicitudes", tags=["Solicitudes"])
-
 @app.get("/")
 def root():
     return {"status": "ok", "message": "JurisBot Rural API corriendo en Windows"}

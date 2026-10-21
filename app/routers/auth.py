@@ -1,52 +1,46 @@
 from fastapi import APIRouter, HTTPException
-from app.schemas import RegistroUsuario, LoginUsuario
+from pydantic import BaseModel
 from app.database import supabase
 
+# ⚠️ SIN PREFIJO AQUÍ (déjalo completamente vacío)
 router = APIRouter()
 
+class LoginRequest(BaseModel):
+    cedula: str
+
+class RegistroRequest(BaseModel):
+    nombre: str
+    cedula: str
+    telefono: str = None
+    rol: str = "CIUDADANO"
+
 @router.post("/registro")
-def registrar_usuario(payload: RegistroUsuario):
+def registrar_usuario(data: RegistroRequest):
     try:
-        # Generamos un UUID falso o usamos uno para pruebas y evitamos el bloqueo de Supabase Auth
-        import uuid
-        user_id = str(uuid.uuid4())
+        existente = supabase.table("usuarios").select("id").eq("cedula", data.cedula).execute()
+        if existente.data:
+            raise HTTPException(status_code=400, detail="Ya existe un usuario registrado con esta cédula.")
 
-        # Insertar directamente en la tabla 'usuarios' de Supabase
         response = supabase.table("usuarios").insert({
-            "id": user_id,
-            "nombre": payload.nombre,
-            "telefono": payload.telefono,
-            "email": payload.email,
-            "rol": payload.rol
+            "nombre": data.nombre,
+            "cedula": data.cedula,
+            "telefono": data.telefono,
+            "rol": data.rol
         }).execute()
-
-        return {
-            "message": "Usuario registrado exitosamente (Modo Local/MVP)",
-            "user_id": user_id
-        }
+        
+        return {"mensaje": "Usuario registrado con éxito", "usuario": response.data[0]}
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
 @router.post("/login")
-def login_usuario(payload: LoginUsuario):
+def login_usuario(data: LoginRequest):
     try:
-        # Buscamos al usuario en la tabla 'usuarios' por su email
-        response = supabase.table("usuarios").select("*").eq("email", payload.email).execute()
+        response = supabase.table("usuarios").select("*").eq("cedula", data.cedula).execute()
         
         if not response.data:
-            raise HTTPException(status_code=400, detail="Usuario no encontrado")
+            raise HTTPException(status_code=404, detail="No se encontró un usuario registrado con esta cédula.")
             
         usuario = response.data[0]
-        
-        # Como estamos en modo desarrollo local MVP, simulamos la generación de un token de acceso
-        return {
-            "access_token": "fake-jwt-token-para-desarrollo-local-12345",
-            "token_type": "bearer",
-            "usuario": {
-                "id": usuario["id"],
-                "nombre": usuario["nombre"],
-                "rol": usuario["rol"]
-            }
-        }
+        return {"mensaje": "Login exitoso", "usuario": usuario}
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
